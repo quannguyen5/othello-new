@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friend Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .player-card {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f5f5f5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .highlighted {
+            background-color: #e6f7ff;
+            border: 2px solid #1890ff;
+        }
+
+        .rank-badge {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            margin-right: 15px;
+        }
+
+        .rank-1 {
+            background-color: gold;
+        }
+
+        .rank-2 {
+            background-color: silver;
+        }
+
+        .rank-3 {
+            background-color: #cd7f32; /* bronze */
+        }
+
+        .rank-other {
+            background-color: #666;
+        }
+
+        .player-name {
+            flex: 1;
+            font-weight: bold;
+        }
+
+        .player-elo {
+            font-weight: bold;
+        }
+
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+<h1>Friend Rankings</h1>
+
+<div th:if="${error}" class="error-message">
+    <p th:text="${error}"></p>
+</div>
+
+<div class="stats-list">
+    <div th:each="player, status : ${allPlayers}"
+         th:class="${player.id == currentUser.id ? 'player-card highlighted' : 'player-card'}"
+         th:attr="onclick=${player.id != currentUser.id ? 'statisticDetail(' + player.id + ')' : null}"
+         th:style="${player.id != currentUser.id ? 'cursor: pointer;' : 'cursor: default;'}"
+    >
+
+        <div th:class="${status.count == 1 ? 'rank-badge rank-1' :
+                            status.count == 2 ? 'rank-badge rank-2' :
+                            status.count == 3 ? 'rank-badge rank-3' :
+                            'rank-badge rank-other'}"
+             th:text="${status.count}">
+        </div>
+
+        <div class="player-name"
+             th:text="${player.id == currentUser.id ? 'You' : player.username}">
+        </div>
+
+        <div class="player-elo" th:text="'ELO: ' + ${player.elo}"></div>
+    </div>
+</div>
+<script th:src="@{/statistic.js}"></script>
+<script th:src="@{/websocket.js}"></script>
+
+</body>
+</html>

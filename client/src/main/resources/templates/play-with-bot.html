@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            padding: 20px;
+            width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .score-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .score {
+            padding: 5px 10px;
+            border: 1px solid #000;
+            border-radius: 5px;
+        }
+
+        .turn-indicator {
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 320px;
+            height: 320px;
+            margin: 0 auto;
+            border: 1px solid #000;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: #2e8b57; /* Forest green */
+            border: 1px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .valid-move {
+            background-color: #90ee90; /* Light green */
+        }
+
+        .valid-move:hover {
+            background-color: #7FFF7F;
+        }
+
+        .piece {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+        }
+
+        .black {
+            background-color: black;
+        }
+
+        .white {
+            background-color: white;
+            border: 1px solid #000;
+        }
+
+        .buttons-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+
+        .button {
+            padding: 8px 30px;
+            border: 1px solid #000;
+            background-color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .disabled:hover {
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Play with bot</h1>
+
+    <div class="score-container">
+        <div class="score">
+            <span id="your-color"></span>: <span id="your-score">2</span>
+        </div>
+        <div class="score">
+            <span id="bot-color"></span>: <span id="bot-score">2</span>
+        </div>
+    </div>
+
+    <div class="turn-indicator" id="turn-indicator">Your turn</div>
+
+    <div class="board" id="game-board">
+        <!-- Cells will be generated dynamically -->
+    </div>
+
+    <div class="buttons-container">
+        <button class="button" onclick="resign()">Resign</button>
+        <button class="button" onclick="quitGame()">Quit</button>
+    </div>
+    <input type="hidden" id="loggedInMemberId" th:value="${session.loggedInMember != null ? session.loggedInMember.id : ''}" />
+</div>
+
+<script>
+    let board = [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0]
+    ];
+
+    let currentPlayer = 1;
+    let userColor = 1;
+    let botColor = 2;
+    let difficulty = 'easy';
+    let loggedInMemberId = null;
+
+    function initGame() {
+        const params = new URLSearchParams(window.location.search);
+        const colorParam = params.get('color');
+        difficulty = params.get('difficulty') || 'easy';
+
+        if (colorParam === 'white') {
+            userColor = 2;
+            botColor = 1;
+        } else if (colorParam === 'black') {
+            userColor = 1;
+            botColor = 2;
+        } else if (colorParam === 'random') {
+            userColor = Math.random() < 0.5 ? 1 : 2;
+            botColor = userColor === 1 ? 2 : 1;
+        }
+
+        document.getElementById('your-color').textContent = 'You(' + (userColor === 1 ? 'Black' : 'White') + ')';
+        document.getElementById('bot-color').textContent = 'Bot(' + (botColor === 1 ? 'Black' : 'White') + ')';
+        getLoggedInMemberId();
+
+        createBoard();
+
+        if (currentPlayer === botColor) {
+            setTimeout(makeBotMove, 500);
+        }
+    }
+
+    function getLoggedInMemberId() {
+
+        const userId = document.getElementById('loggedInMemberId').value;
+
+        if (userId) {
+            loggedInMemberId = parseInt(userId);
+            console.log("Logged in user ID:", loggedInMemberId);
+        } else {
+            console.warn("No logged in user found!");
+            loggedInMemberId = null;
+        }
+
+    }
+
+    function createBoard() {
+        const gameBoard = document.getElementById('game-board');
+        gameBoard.innerHTML = '';
+
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = i;
+                cell.dataset.col = j;
+                cell.onclick = () => handleCellClick(i, j);
+                gameBoard.appendChild(cell);
+            }
+        }
+
+        updateBoard();
+    }
+
+    function updateBoard() {
+        const cells = document.getElementsByClassName('cell');
+        for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i];
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+
+            cell.innerHTML = '';
+            cell.className = 'cell';
+
+            if (board[row][col] !== 0) {
+                const piece = document.createElement('div');
+                piece.className = 'piece ' + (board[row][col] === 1 ? 'black' : 'white');
+                cell.appendChild(piece);
+            }
+        }
+
+        highlightValidMoves();
+        updateScores();
+        updateTurnIndicator();
+    }
+
+    function highlightValidMoves() {
+        const validMoves = getValidMoves(board, currentPlayer);
+        const cells = document.getElementsByClassName('cell');
+
+        for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i];
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+
+            if (validMoves.some(move => move[0] === row && move[1] === col)) {
+                cell.classList.add('valid-move');
+            }
+        }
+    }
+
+    function getValidMoves(board, color) {
+        const moves = [];
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === 0 && isValidMove(board, i, j, color)) {
+                    moves.push([i, j]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    function isValidMove(board, row, col, color) {
+        if (board[row][col] !== 0) return false;
+
+        const directions = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1],           [0, 1],
+            [1, -1],  [1, 0],  [1, 1]
+        ];
+
+        for (let [dr, dc] of directions) {
+            if (checkDirection(board, row, col, dr, dc, color)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function checkDirection(board, row, col, dr, dc, color) {
+        let r = row + dr;
+        let c = col + dc;
+        let foundOpponent = false;
+
+        while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+            if (board[r][c] === 0) return false;
+            if (board[r][c] === color) return foundOpponent;
+            foundOpponent = true;
+            r += dr;
+            c += dc;
+        }
+
+        return false;
+    }
+
+    function makeMove(row, col, color) {
+        board[row][col] = color;
+        flipPieces(row, col, color);
+        return true;
+    }
+
+    function flipPieces(row, col, color) {
+        const directions = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1],           [0, 1],
+            [1, -1],  [1, 0],  [1, 1]
+        ];
+
+        for (let [dr, dc] of directions) {
+            const piecesToFlip = [];
+            let r = row + dr;
+            let c = col + dc;
+
+            while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                if (board[r][c] === 0) break;
+                if (board[r][c] === color) {
+                    // Flip all pieces in this direction
+                    for (let [fr, fc] of piecesToFlip) {
+                        board[fr][fc] = color;
+                    }
+                    break;
+                }
+                piecesToFlip.push([r, c]);
+                r += dr;
+                c += dc;
+            }
+        }
+    }
+
+    function handleCellClick(row, col) {
+        if (currentPlayer !== userColor) return;
+
+        if (isValidMove(board, row, col, userColor)) {
+            makeMove(row, col, userColor);
+            updateBoard();
+
+            switchPlayer();
+
+            if (currentPlayer === botColor) {
+                setTimeout(makeBotMove, 500);
+            }
+        }
+    }
+
+    async function makeBotMove() {
+        try {
+            const response = await fetch('/make-move-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    board: board,
+                    algorithm: difficulty === 'easy' ? 'random' : 'minimax',
+                    color: botColor
+                })
+            });
+
+            const resBoard = await response.json();
+            const move = resBoard["move"];
+
+            if (move && move.length === 2) {
+                makeMove(move[0], move[1], botColor);
+                updateBoard();
+                switchPlayer();
+            }
+        } catch (error) {
+            console.error('Error getting bot move:', error);
+        }
+    }
+
+    function switchPlayer() {
+        const validMoves = getValidMoves(board, currentPlayer === 1 ? 2 : 1);
+        if (validMoves.length > 0) {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+        } else {
+            const currentValidMoves = getValidMoves(board, currentPlayer);
+            if (currentValidMoves.length === 0) {
+                endGame();
+                return;
+            }
+        }
+
+        updateBoard();
+    }
+
+    function updateScores() {
+        let yourScore = 0;
+        let botScore = 0;
+
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === userColor) yourScore++;
+                if (board[i][j] === botColor) botScore++;
+            }
+        }
+
+        document.getElementById('your-score').textContent = yourScore;
+        document.getElementById('bot-score').textContent = botScore;
+    }
+
+    function updateTurnIndicator() {
+        const indicator = document.getElementById('turn-indicator');
+        const playerText = currentPlayer === userColor ? 'Your turn' : "Bot's turn";
+        const colorText = currentPlayer === 1 ? ' (Black)' : ' (White)';
+        indicator.textContent = playerText + colorText;
+    }
+
+    function endGame() {
+        const yourScore = parseInt(document.getElementById('your-score').textContent);
+        const botScore = parseInt(document.getElementById('bot-score').textContent);
+
+        let result = '';
+        let isUserWin = false;
+
+        if (yourScore > botScore) {
+            result = 'You Win!';
+            isUserWin = true;
+        } else if (botScore > yourScore) {
+            result = 'Bot Wins!';
+            isUserWin = false;
+        } else {
+            result = "It's a Draw!";
+            isUserWin = false;
+        }
+
+        document.getElementById('turn-indicator').textContent = result;
+
+        const cells = document.getElementsByClassName('cell');
+        for (let i = 0; i < cells.length; i++) {
+            cells[i].classList.add('disabled');
+        }
+
+        saveGameResult(isUserWin);
+    }
+    async function saveGameResult(isUserWin) {
+        try {
+            const userId = document.getElementById('loggedInMemberId').value;
+            if (!userId) {
+                console.error("No logged in user found!");
+                return;
+            }
+
+            const botId = getBotIdFromDifficulty(difficulty);
+
+            console.log("User ID:", userId);
+            console.log("Bot ID:", botId);
+            console.log("User Win:", isUserWin);
+
+            let res = 0;
+            if(isUserWin) res = 1;
+
+            const memberA = {
+                id: parseInt(userId)
+            }
+            const bot = {
+                id: botId
+            }
+
+            const response = await fetch('/save-game-result', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    memberA: memberA,
+                    bot: bot,
+                    resAToBot: res
+                })
+            });
+
+            const result = await response.json();
+            console.log("Result saved:", result);
+        } catch (error) {
+            console.error('Error saving game result:', error);
+        }
+    }
+
+    function getBotIdFromDifficulty(difficulty) {
+        switch(difficulty) {
+            case 'easy':
+                return 1;
+            case 'medium':
+                return 2;
+            default:
+                return 1;
+        }
+    }
+
+    function resign() {
+        if (gameFinished) return;
+
+        if (confirm('Are you sure you want to resign?')) {
+            gameFinished = true;
+            document.getElementById('turn-indicator').textContent = 'You Resigned - Bot Wins!';
+
+            const cells = document.getElementsByClassName('cell');
+            for (let i = 0; i < cells.length; i++) {
+                cells[i].classList.add('disabled');
+            }
+
+            saveGameResult(false);
+
+            setTimeout(() => {
+                window.location.href = '/home';
+            }, 1500);
+        }
+    }
+
+    function quitGame() {
+        if (confirm('Are you sure you want to quit the game?')) {
+            window.location.href = '/home';
+        }
+    }
+
+    window.onload = initGame;
+</script>
+</body>
+</html>
