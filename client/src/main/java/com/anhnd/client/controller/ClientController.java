@@ -54,7 +54,20 @@ public class ClientController {
 
     @GetMapping("/play")
     public String play() {
+        Member loggedInMember = (Member) session.getAttribute("loggedInMember");
+        if (loggedInMember == null) {
+            return "redirect:/login";
+        }
         return "play";
+    }
+
+    @GetMapping("/play-with-friend")
+    public String playWithFriend() {
+        Member loggedInMember = (Member) session.getAttribute("loggedInMember");
+        if (loggedInMember == null) {
+            return "redirect:/login";
+        }
+        return "play-with-friend";
     }
 
     @GetMapping("/select-bot")

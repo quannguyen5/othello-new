@@ -8,6 +8,8 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 class Request {
     private int senderId;
     private int receiverId;
@@ -84,5 +86,58 @@ public class WebSocketHandler {
                 )
         );
 
+    }
+
+    @MessageMapping("/challenge-response")
+    public void challengeResponse(Request request) {
+        System.out.println(String.format("%s response from %d to %d",
+                request.getType(),
+                request.getSenderId(),
+                request.getReceiverId()));
+
+        messagingTemplate.convertAndSend(
+                "/queue/private." + request.getReceiverId(),
+                request
+        );
+
+        if ("CHALLENGE_ACCEPTED".equals(request.getType())) {
+            Challenge challenge = challengeDAO.findPendingChallenge(
+                    request.getReceiverId(),
+                    request.getSenderId()
+            );
+
+            if (challenge != null) {
+                challenge.setStatus("ACCEPTED");
+                challengeDAO.updateChallengeStatus(challenge);
+                System.out.println(request.getReceiverId());
+                List<Challenge> declineChallenge = challengeDAO.findAllPendindChallengesById(request.getSenderId());
+                for (Challenge otherChallenge : declineChallenge) {
+
+                    otherChallenge.setStatus("DECLINED");
+                    challengeDAO.updateChallengeStatus(otherChallenge);
+                    Request declineRequest = new Request(
+                            request.getSenderId(),
+                            otherChallenge.getChallenger().getId(),
+                            "CHALLENGE_DECLINED"
+                    );
+
+                    messagingTemplate.convertAndSend(
+                            "/queue/private." + otherChallenge.getChallenger().getId(),
+                            declineRequest
+                    );
+
+                }
+            }
+        } else if ("CHALLENGE_DECLINED".equals(request.getType())) {
+            Challenge challenge = challengeDAO.findPendingChallenge(
+                    request.getReceiverId(),
+                    request.getSenderId()
+            );
+
+            if (challenge != null) {
+                challenge.setStatus("DECLINED");
+                challengeDAO.updateChallengeStatus(challenge);
+            }
+        }
     }
 }
