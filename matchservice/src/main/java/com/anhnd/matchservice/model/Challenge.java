@@ -1,4 +1,4 @@
-package com.anhnd.memberservice.model;
+package com.anhnd.matchservice.model;
 
 import java.util.Date;
 
@@ -39,6 +39,22 @@ public class Challenge {
         this.challenged = challenged;
     }
 
+    public Bot getBot() {
+        return bot;
+    }
+
+    public void setBot(Bot bot) {
+        this.bot = bot;
+    }
+
+    public int getWithBot() {
+        return withBot;
+    }
+
+    public void setWithBot(int withBot) {
+        this.withBot = withBot;
+    }
+
     public Date getCreated_at() {
         return created_at;
     }
@@ -61,21 +77,5 @@ public class Challenge {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-
-    public Bot getBot() {
-        return bot;
-    }
-
-    public void setBot(Bot bot) {
-        this.bot = bot;
-    }
-
-    public int getWithBot() {
-        return withBot;
-    }
-
-    public void setWithBot(int withBot) {
-        this.withBot = withBot;
     }
 }

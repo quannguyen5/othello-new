@@ -4,10 +4,7 @@ import com.anhnd.memberservice.model.Challenge;
 import com.anhnd.memberservice.model.Member;
 import org.springframework.stereotype.Service;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,21 +17,41 @@ public class ChallengeDAO extends MemberServiceDAO{
     /**
      * create challenge
      */
-    public boolean createChallenge(Challenge challenge) {
+    public Challenge createChallenge(Challenge challenge) {
         String sql = """
-            insert into challenges(challenger_id, challenged_id, created_at, expires_at, status) values(?,?,NOW(),NOW() + INTERVAL 2 MINUTE,"PENDING");
-        """;
+        insert into challenges(challenger_id, challenged_id, created_at, expires_at, status, with_bot) 
+        values(?,?,NOW(),NOW() + INTERVAL 2 MINUTE,?,?);
+    """;
+
         try (Connection conn = this.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             // Thêm Statement.RETURN_GENERATED_KEYS ở đây
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
             ps.setInt(1, challenge.getChallenger().getId());
-            ps.setInt(2, challenge.getChallenged().getId());
+            if(challenge.getWithBot() == 1) {
+                ps.setInt(2, challenge.getBot().getId());
+            } else {
+                ps.setInt(2, challenge.getChallenged().getId());
+            }
+            ps.setString(3, challenge.getStatus());
+            ps.setInt(4, challenge.getWithBot());
 
             int rowsAffected = ps.executeUpdate();
-            return rowsAffected > 0;
+            if (rowsAffected > 0) {
+                try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        challenge.setId(generatedKeys.getInt(1));
+                    } else {
+                        throw new SQLException("Tạo challenge thất bại, không lấy được ID.");
+                    }
+                }
+                return challenge;
+            }
+
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return false;
+        return null;
     }
 
     /**

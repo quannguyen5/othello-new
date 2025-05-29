@@ -1,4 +1,4 @@
-package com.anhnd.memberservice.model;
+package com.anhnd.client.model;
 
 import java.util.Date;
 

@@ -6,12 +6,19 @@ import com.anhnd.botservice.model.Bot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.sql.SQLException;
+
 @RestController
 @RequestMapping("bot-service/api")
 public class BotServiceController {
 
     @Autowired
     private BotDAO botDAO;
+
+    @GetMapping("get-bot")
+    public Bot getBot(@RequestParam("algorithm") String algorithm) throws SQLException {
+        return botDAO.getBotByAlgorithm(algorithm);
+    }
 
     @PostMapping("/make-move")
     public Board getBotMove(@RequestBody Board board) {

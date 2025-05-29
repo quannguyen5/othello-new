@@ -6,6 +6,9 @@ import com.anhnd.memberservice.model.Challenge;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -64,6 +67,11 @@ public class WebSocketHandler {
         this.messagingTemplate = messagingTemplate;
     }
 
+    @PostMapping("/member-service/api/create-challenge")
+    public Challenge createChallenge(@RequestBody() Challenge challenge) {
+        return challengeDAO.createChallenge(challenge);
+    }
+
     @MessageMapping("/challenge")
     public void challenge(Request request) {
         System.out.println(String.format("from %d to %d",
@@ -73,9 +81,9 @@ public class WebSocketHandler {
         Challenge challenge = new Challenge();
         challenge.setChallenger(memberDAO.findById(request.getSenderId()));
         challenge.setChallenged(memberDAO.findById(request.getReceiverId()));
-        boolean isCreated = challengeDAO.createChallenge(challenge);
-
-        System.out.println(isCreated);
+        challenge.setStatus("PENDING");
+        challenge.setWithBot(0);
+        Challenge isCreated = challengeDAO.createChallenge(challenge);
 
         messagingTemplate.convertAndSend(
                 "/queue/private." + request.getReceiverId(),
@@ -85,7 +93,6 @@ public class WebSocketHandler {
                         "CHALLENGE_REQUEST"
                 )
         );
-
     }
 
     @MessageMapping("/challenge-response")
@@ -95,12 +102,12 @@ public class WebSocketHandler {
                 request.getSenderId(),
                 request.getReceiverId()));
 
-        messagingTemplate.convertAndSend(
-                "/queue/private." + request.getReceiverId(),
-                request
-        );
-
         if ("CHALLENGE_ACCEPTED".equals(request.getType())) {
+            messagingTemplate.convertAndSend(
+                    "/queue/private." + request.getReceiverId(),
+                    request
+            );
+
             Challenge challenge = challengeDAO.findPendingChallenge(
                     request.getReceiverId(),
                     request.getSenderId()

@@ -28,7 +28,7 @@ stompClient.onConnect = function(frame) {
 
             // Update UI to show challenges
             updateChallengeNotifications();
-        }             else if (data.type === "CHALLENGE_ACCEPTED") {
+        } else if (data.type === "CHALLENGE_ACCEPTED") {
             console.log(`User ${data.senderId} accepted your challenge`);
             showChallengeAcceptedNotification(data.senderId);
             // Redirect to game page

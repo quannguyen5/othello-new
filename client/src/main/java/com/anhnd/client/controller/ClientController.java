@@ -1,8 +1,6 @@
 package com.anhnd.client.controller;
 
-import com.anhnd.client.model.Board;
-import com.anhnd.client.model.Member;
-import com.anhnd.client.model.Result;
+import com.anhnd.client.model.*;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +32,9 @@ public class ClientController {
 
     @Value("${result.service.url}")
     private String resultServiceUrl;
+
+    @Value("${match.service.url}")
+    private String matchServiceUrl;
 
     @GetMapping("/login")
     public String login() {
@@ -322,6 +325,73 @@ public class ClientController {
 
             model.addAttribute("difficulty", difficulty);
             model.addAttribute("color", color);
+
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // create challenge
+            Bot bot = new Bot();
+            String algorithm = "";
+            if(difficulty.equals("easy")) {
+                algorithm = "random";
+            } else if(difficulty.equals("medium")) {
+                algorithm = "minimax";
+            }
+            String externalBotServiceUrl = botServiceUrl + "get-bot?algorithm=" + algorithm;
+            try {
+                ResponseEntity<Bot> responseEntity = restTemplate.exchange(
+                        externalBotServiceUrl,
+                        HttpMethod.GET,
+                        null,
+                        new ParameterizedTypeReference<Bot>() {}
+                );
+                bot = responseEntity.getBody();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            Challenge challenge = new Challenge();
+            challenge.setChallenger(loggedInMember);
+            challenge.setBot(bot);
+            challenge.setStatus("ACCEPTED");
+            challenge.setWithBot(1);
+
+            String externalMemberServiceUrl = memberServiceUrl + "create-challenge";
+            try {
+                HttpEntity<Challenge> httpEntityRequest = new HttpEntity<>(challenge, headers);
+                ResponseEntity<Challenge> responseEntity = restTemplate.exchange(
+                        externalMemberServiceUrl,
+                        HttpMethod.POST,
+                        httpEntityRequest,
+                        new ParameterizedTypeReference<Challenge>() {}
+                );
+                challenge = responseEntity.getBody();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            // create match
+            if(challenge != null) {
+                Match match = new Match();
+                match.setChallenge(challenge);
+                match.setIsWhiteRequester(1);
+                match.setWhiteToBlack(-1);
+
+                String externalMatchServiceUrl = matchServiceUrl + "create-match";
+                try {
+                    HttpEntity<Match> httpEntityRequest = new HttpEntity<>(match, headers);
+                    ResponseEntity<Match> responseEntity = restTemplate.exchange(
+                            externalMatchServiceUrl,
+                            HttpMethod.POST,
+                            httpEntityRequest,
+                            new ParameterizedTypeReference<Match>() {}
+                    );
+                    match = responseEntity.getBody();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         return "play-with-bot";
     }
@@ -370,6 +440,38 @@ public class ClientController {
     @PostMapping("/save-game-result")
     @ResponseBody
     public boolean saveGameResult(@RequestBody Result result) {
+        try {
+            Member loggedInMember = (Member) session.getAttribute("loggedInMember");
+            if (loggedInMember == null) {
+                return false;
+            }
+
+            Member memberA = new Member();
+            memberA.setId(loggedInMember.getId());
+            result.setMemberA(memberA);
+
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            HttpEntity<Result> entity = new HttpEntity<>(result, headers);
+
+            ResponseEntity<Boolean> response = restTemplate.exchange(
+                    resultServiceUrl + "/save-result",
+                    HttpMethod.POST,
+                    entity,
+                    Boolean.class
+            );
+
+            return response.getBody();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @PostMapping("/save-match-result")
+    @ResponseBody
+    public boolean saveMatchResult(@RequestBody Match match) {
         try {
             Member loggedInMember = (Member) session.getAttribute("loggedInMember");
             if (loggedInMember == null) {
