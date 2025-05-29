@@ -3,13 +3,17 @@ package com.anhnd.memberservice.controller;
 import com.anhnd.memberservice.dao.ChallengeDAO;
 import com.anhnd.memberservice.dao.MemberDAO;
 import com.anhnd.memberservice.model.Challenge;
+import com.anhnd.memberservice.model.Match;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
@@ -70,6 +74,9 @@ public class WebSocketHandler {
 
     @Autowired
     private MemberDAO memberDAO;
+
+    @Value("${match.service.url}")
+    private String matchServiceUrl;
 
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -140,6 +147,19 @@ public class WebSocketHandler {
                 challenge.setStatus("ACCEPTED");
                 challengeDAO.updateChallengeStatus(challenge);
                 System.out.println(request.getReceiverId());
+
+                // create match
+                Match match = createMatchForChallenge(challenge);
+                messagingTemplate.convertAndSend(
+                        "/queue/match." + challenge.getChallenger().getId(),
+                        match
+                );
+
+                messagingTemplate.convertAndSend(
+                        "/queue/match." + challenge.getChallenged().getId(),
+                        match
+                );
+
                 List<Challenge> declineChallenge = challengeDAO.findAllPendindChallengesById(request.getSenderId());
                 for (Challenge otherChallenge : declineChallenge) {
 
@@ -170,4 +190,44 @@ public class WebSocketHandler {
             }
         }
     }
+
+    private Match createMatchForChallenge(Challenge challenge) {
+        try {
+            // Tạo đối tượng Match
+            Match match = new Match();
+            match.setChallenge(challenge);
+
+            // Giá trị mặc định khi bắt đầu trận đấu
+            match.setWhiteToBlack(-1);
+
+            // Gọi API tạo match
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Match> httpEntityRequest = new HttpEntity<>(match, headers);
+
+            // URL API tạo match
+            String createMatchUrl = matchServiceUrl + "create-match";
+
+            System.out.println("Calling match service API: " + createMatchUrl);
+
+            ResponseEntity<Match> responseEntity = restTemplate.exchange(
+                    createMatchUrl,
+                    HttpMethod.POST,
+                    httpEntityRequest,
+                    Match.class
+            );
+
+            Match createdMatch = responseEntity.getBody();
+            System.out.println("Match created successfully with ID: " + (createdMatch != null ? createdMatch.getId() : "null"));
+
+            return createdMatch;
+        } catch (Exception e) {
+            System.err.println("Error creating match: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 }
