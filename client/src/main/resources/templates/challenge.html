@@ -25,19 +25,9 @@
             position: relative;
             width: 450px;
             padding: 25px;
-        }
-
-        .border-arrow {
-            position: absolute;
-            top: -16px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 16px solid transparent;
-            border-right: 16px solid transparent;
-            border-bottom: 16px solid #ccc;
-            z-index: -1;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         h1 {
@@ -45,27 +35,6 @@
             margin-bottom: 20px;
             font-size: 24px;
             color: #333;
-        }
-
-        .search-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 25px;
-            gap: 15px;
-        }
-
-        .search-container label {
-            font-size: 16px;
-            color: #333;
-        }
-
-        .search-container input {
-            padding: 8px 12px;
-            width: 220px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
         }
 
         .player-card {
@@ -81,30 +50,14 @@
             overflow: hidden;
         }
 
-        .player-card::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 30px;
-            height: 100%;
-            background: linear-gradient(to left, #f9f9f9, transparent);
-            border-top-right-radius: 30px;
-            border-bottom-right-radius: 30px;
-        }
-
         .offline {
             background-color: #999999;
         }
-        
+
         .disabled {
             opacity: 0.6;
             cursor: not-allowed;
             pointer-events: none;
-        }
-        
-        .playing {
-            background-color: #4caf50;
         }
 
         .avatar {
@@ -154,7 +107,6 @@
             transition: all 0.2s ease;
         }
 
-
         .btn-challenge {
             background-color: #8fd19e;
             color: #333;
@@ -172,14 +124,113 @@
             background-color: #f05454;
         }
 
-        .playing {
+        .offline {
+            background-color: #999999;
+        }
+
+        /* Modal/Popup styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background-color: white;
+            border-radius: 10px;
+            width: 320px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .color-options {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 25px;
+        }
+
+        .color-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .color-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            border: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .color-circle.black {
+            background-color: #222;
+        }
+
+        .color-circle.white {
+            background-color: #fff;
+            border-color: #ddd;
+        }
+
+        .color-option.selected .color-circle {
+            border-color: #4caf50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        .color-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 8px 0;
+            border: none;
+            border-radius: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-btn-cancel {
+            background-color: #f1f1f1;
+            color: #555;
+        }
+
+        .modal-btn-confirm {
             background-color: #4caf50;
+            color: white;
         }
 
-        .playing:hover {
-            background-color: #3c9f40;
+        .modal-btn-cancel:hover {
+            background-color: #e5e5e5;
         }
 
+        .modal-btn-confirm:hover {
+            background-color: #3d9140;
+        }
     </style>
 </head>
 <body>
@@ -196,10 +247,12 @@
                 <div class="player-elo" th:text= "'ELO: ' + ${member.elo}"></div>
             </div>
             <div class="player-actions">
-                <button class="btn btn-challenge"
+                <!-- Thay đổi: sử dụng data attributes thay vì onclick -->
+                <button class="btn btn-challenge challenge-btn"
                         th:classappend="${member.status == 0} ? 'disabled' : ''"
                         th:disabled="${member.status == false}"
-                        th:onclick="'createChallenge(' + ${member.id} + ')'">Challenge</button>
+                        th:data-id="${member.id}"
+                        th:data-name="${member.username}">Challenge</button>
 
                 <button class="btn btn-status"
                         th:classappend="${member.status} ? 'online' : 'offline'"
@@ -208,9 +261,111 @@
         </div>
     </div>
 </div>
+
+<!-- Color Selection Modal -->
+<div id="challengeModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-title">Chọn màu quân để thách đấu <span id="opponentName"></span></div>
+
+        <div class="color-options">
+            <div class="color-option" onclick="selectColor('black')">
+                <div class="color-circle black"></div>
+                <div class="color-label">Đen</div>
+            </div>
+
+            <div class="color-option" onclick="selectColor('white')">
+                <div class="color-circle white"></div>
+                <div class="color-label">Trắng</div>
+            </div>
+        </div>
+
+        <div class="modal-buttons">
+            <button class="modal-btn modal-btn-cancel" onclick="closeChallengeModal()">Hủy</button>
+            <button class="modal-btn modal-btn-confirm" onclick="confirmChallenge()">Thách đấu</button>
+        </div>
+    </div>
+</div>
+
 <script>
     const logout = () => {
         window.location.href = "/logout";
+    }
+
+    // Global variables to store selected member and color
+    let selectedMemberId = null;
+    let selectedColor = 'black'; // Default color
+
+    // Thêm event listener cho tất cả nút challenge
+    document.addEventListener('DOMContentLoaded', function() {
+        const challengeButtons = document.querySelectorAll('.challenge-btn');
+        challengeButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const memberId = this.getAttribute('data-id');
+                const memberName = this.getAttribute('data-name');
+                openChallengeModal(memberId, memberName);
+            });
+        });
+    });
+
+    // Open the challenge modal
+    function openChallengeModal(memberId, memberName) {
+        selectedMemberId = memberId;
+        document.getElementById('opponentName').textContent = memberName;
+        document.getElementById('challengeModal').style.display = 'flex';
+
+        // Reset color selection
+        selectColor('black');
+    }
+
+    // Close the challenge modal
+    function closeChallengeModal() {
+        document.getElementById('challengeModal').style.display = 'none';
+    }
+
+    // Handle color selection
+    function selectColor(color) {
+        selectedColor = color;
+
+        // Update UI to show selected color
+        const options = document.querySelectorAll('.color-option');
+        options.forEach(option => {
+            option.classList.remove('selected');
+            if (option.querySelector(`.color-circle.${color}`)) {
+                option.classList.add('selected');
+            }
+        });
+    }
+
+    // Confirm challenge and send websocket message
+    function confirmChallenge() {
+        if (!selectedMemberId) return;
+
+        console.log(`Creating challenge for member ID: ${selectedMemberId} with color: ${selectedColor}`);
+
+        if (!stompClient.connected) {
+            console.error("STOMP client not connected");
+
+            if (userId && userId.length > 0) {
+                console.log("Attempting to reconnect...");
+                stompClient.activate();
+                return;
+            } else {
+                alert("Cannot create challenge: User ID not found");
+                return;
+            }
+        }
+
+        stompClient.publish({
+            destination: "/app/challenge",
+            body: JSON.stringify({
+                'senderId': userId,
+                'receiverId': selectedMemberId,
+                'type': 'CHALLENGE_REQUEST',
+                'senderColor': selectedColor
+            })
+        });
+
+        closeChallengeModal();
     }
 </script>
 <script th:src="@{/websocket.js}"></script>

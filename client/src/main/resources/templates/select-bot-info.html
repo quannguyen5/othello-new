@@ -75,7 +75,7 @@
 <div class="container">
     <h1>Play with bot</h1>
 
-    <form id="botForm" action="/play-with-bot" method="GET">
+    <form id="botForm">
         <div class="form-group">
             <label for="difficulty">Select difficult level</label>
             <select id="difficulty" name="difficulty">
@@ -93,9 +93,39 @@
             </select>
         </div>
 
-        <button type="submit" class="play-button">Play</button>
+        <button type="button" onclick="startGame()" class="play-button">Play</button>
     </form>
 
+    <script>
+        function startGame() {
+            const difficulty = document.getElementById('difficulty').value;
+            const color = document.getElementById('color').value;
+
+            fetch('/create-bot-match', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    difficulty: difficulty,
+                    color: color
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data)
+                    if (data.matchId) {
+                        window.location.href = `/play-with-bot/${data.matchId}`;
+                    } else {
+                        alert('Error creating match. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error creating match. Please try again.');
+                });
+        }
+    </script>
 </div>
 </body>
 </html>

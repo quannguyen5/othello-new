@@ -3,7 +3,6 @@ package com.anhnd.client.model;
 public class Match {
     private int id;
     private Challenge challenge;
-    private int isWhiteRequester;
     private int whiteToBlack;
 
     public Match() {
@@ -23,14 +22,6 @@ public class Match {
 
     public void setChallenge(Challenge challenge) {
         this.challenge = challenge;
-    }
-
-    public int getIsWhiteRequester() {
-        return isWhiteRequester;
-    }
-
-    public void setIsWhiteRequester(int isWhiteRequester) {
-        this.isWhiteRequester = isWhiteRequester;
     }
 
     public int getWhiteToBlack() {

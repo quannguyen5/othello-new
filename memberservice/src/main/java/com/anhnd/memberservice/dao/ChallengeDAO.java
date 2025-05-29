@@ -19,8 +19,8 @@ public class ChallengeDAO extends MemberServiceDAO{
      */
     public Challenge createChallenge(Challenge challenge) {
         String sql = """
-        insert into challenges(challenger_id, challenged_id, created_at, expires_at, status, with_bot) 
-        values(?,?,NOW(),NOW() + INTERVAL 2 MINUTE,?,?);
+        insert into challenges(challenger_id, challenged_id, created_at, expires_at, status, with_bot, is_white_requester) 
+        values(?,?,NOW(),NOW() + INTERVAL 2 MINUTE,?,?,?);
     """;
 
         try (Connection conn = this.getConnection();
@@ -35,6 +35,7 @@ public class ChallengeDAO extends MemberServiceDAO{
             }
             ps.setString(3, challenge.getStatus());
             ps.setInt(4, challenge.getWithBot());
+            ps.setInt(5, challenge.getIsWhiteRequester());
 
             int rowsAffected = ps.executeUpdate();
             if (rowsAffected > 0) {
@@ -126,6 +127,7 @@ public class ChallengeDAO extends MemberServiceDAO{
                     challenged.setId(rs.getInt("challenged_id"));
                     challenge.setChallenged(challenged);
                     challenge.setStatus(rs.getString("status"));
+                    challenge.setIsWhiteRequester(rs.getInt("is_white_requester"));
                     challenges.add(challenge);
                 }
             }

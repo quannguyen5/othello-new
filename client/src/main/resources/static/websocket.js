@@ -230,7 +230,8 @@ function acceptChallenge(index) {
         body: JSON.stringify({
             'senderId': userId,
             'receiverId': challenge.senderId,
-            'type': 'CHALLENGE_ACCEPTED'
+            'type': 'CHALLENGE_ACCEPTED',
+            'senderColor': challenge.senderColor
         })
     });
 
@@ -246,6 +247,7 @@ function acceptChallenge(index) {
 
 function declineChallenge(index) {
     const challenge = pendingChallenges[index];
+    console.log(challenge)
     console.log(`Declining challenge from user ${challenge.senderId}`);
 
     // Send decline message via WebSocket
@@ -254,7 +256,8 @@ function declineChallenge(index) {
         body: JSON.stringify({
             'senderId': userId,
             'receiverId': challenge.senderId,
-            'type': 'CHALLENGE_DECLINED'
+            'type': 'CHALLENGE_DECLINED',
+            'senderColor': challenge.senderColor
         })
     });
 
@@ -298,6 +301,7 @@ function showChallengeAcceptedNotification(userId) {
         }
     }, 2000);
 }
+
 function showChallengeDeclinedNotification(userId) {
     const existingNotifications = document.querySelectorAll('.declined-notification');
     existingNotifications.forEach(notif => notif.remove());

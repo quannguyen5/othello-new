@@ -16,15 +16,14 @@ public class MatchDAO extends MatchServiceDAO {
      */
     public Match createMatch(Match match) {
         String sql = """
-            insert into `match`(is_white_requester, white_to_black, challenge_id) values(?,?,?);
+            insert into `match`(white_to_black, challenge_id) values(?,?);
         """;
         try (Connection conn = this.getConnection();
              // Thêm Statement.RETURN_GENERATED_KEYS để lấy ID mới
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setInt(1, match.getIsWhiteRequester());
-            ps.setInt(2, match.getWhiteToBlack());
-            ps.setInt(3, match.getChallenge().getId());
+            ps.setInt(1, match.getWhiteToBlack());
+            ps.setInt(2, match.getChallenge().getId());
 
             int rowsAffected = ps.executeUpdate();
 
@@ -47,5 +46,23 @@ public class MatchDAO extends MatchServiceDAO {
             e.printStackTrace();
         }
         return null;
+    }
+
+    /**
+     * save match result
+     */
+    public boolean saveMatchResult(Match match) {
+        String sql = "UPDATE `match` SET white_to_black = ? WHERE id = ?";
+        try (Connection conn = this.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, match.getWhiteToBlack());
+            ps.setInt(2, match.getId());
+
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

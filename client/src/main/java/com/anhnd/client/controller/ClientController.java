@@ -12,10 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 @Controller
@@ -311,88 +308,128 @@ public class ClientController {
         }
     }
 
-    @GetMapping("/play-with-bot")
-    public String playWithBot(@RequestParam(value = "difficulty", required = false) String difficulty,
-                              @RequestParam(value = "color", required = false) String color,
-                              Model model) {
+    @PostMapping("/create-bot-match")
+    @ResponseBody
+    public Map<String, Object> createBotMatch(@RequestBody Map<String, String> request) {
+        Member loggedInMember = (Member) session.getAttribute("loggedInMember");
+        Map<String, Object> response = new HashMap<>();
+
+        if (loggedInMember == null) {
+            response.put("success", false);
+            response.put("error", "Not logged in");
+            return response;
+        }
+
+        String difficulty = request.get("difficulty");
+        String color = request.get("color");
+
+        // Get bot based on difficulty
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        String algorithm = difficulty.equals("easy") ? "random" : "minimax";
+        String externalBotServiceUrl = botServiceUrl + "get-bot?algorithm=" + algorithm;
+
+        Bot bot = null;
+        try {
+            ResponseEntity<Bot> responseEntity = restTemplate.exchange(
+                    externalBotServiceUrl,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<Bot>() {}
+            );
+            bot = responseEntity.getBody();
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", "Failed to get bot information");
+            return response;
+        }
+
+        // Create challenge
+        Challenge challenge = new Challenge();
+        challenge.setChallenger(loggedInMember);
+        challenge.setBot(bot);
+        challenge.setStatus("ACCEPTED");
+        challenge.setWithBot(1);
+        // Set white/black based on color preference
+        if (color.equals("white")) {
+            challenge.setIsWhiteRequester(1);
+        } else if (color.equals("black")) {
+            challenge.setIsWhiteRequester(0);
+        } else {
+            challenge.setIsWhiteRequester(Math.random() < 0.5 ? 1 : 0);
+        }
+
+        String externalMemberServiceUrl = memberServiceUrl + "create-challenge";
+        try {
+            HttpEntity<Challenge> httpEntityRequest = new HttpEntity<>(challenge, headers);
+            ResponseEntity<Challenge> responseEntity = restTemplate.exchange(
+                    externalMemberServiceUrl,
+                    HttpMethod.POST,
+                    httpEntityRequest,
+                    new ParameterizedTypeReference<Challenge>() {}
+            );
+            challenge = responseEntity.getBody();
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", "Failed to create challenge");
+            return response;
+        }
+
+        // Create match
+        if(challenge != null) {
+            Match match = new Match();
+            match.setChallenge(challenge);
+
+            match.setWhiteToBlack(-1);
+
+            String externalMatchServiceUrl = matchServiceUrl + "create-match";
+            try {
+                System.out.println(1);
+                HttpEntity<Match> httpEntityRequest = new HttpEntity<>(match, headers);
+                ResponseEntity<Match> responseEntity = restTemplate.exchange(
+                        externalMatchServiceUrl,
+                        HttpMethod.POST,
+                        httpEntityRequest,
+                        new ParameterizedTypeReference<Match>() {}
+                );
+                match = responseEntity.getBody();
+                System.out.println(0);
+
+                if (match != null) {
+                    // Store game preferences in session
+                    session.setAttribute("gameDifficulty", difficulty);
+                    session.setAttribute("gameColor", color);
+
+                    response.put("success", true);
+                    response.put("matchId", match.getId());
+                    return response;
+                }
+            } catch (Exception e) {
+                response.put("success", false);
+                response.put("error", "Failed to create match");
+                return response;
+            }
+        }
+
+        response.put("success", false);
+        response.put("error", "Failed to create game");
+        return response;
+    }
+
+    @GetMapping("/play-with-bot/{matchId}")
+    public String playWithBotById(@PathVariable int matchId, Model model) {
         Member loggedInMember = (Member) session.getAttribute("loggedInMember");
         if (loggedInMember == null) {
             return "redirect:/login";
         }
-        if (difficulty != null && color != null) {
-            session.setAttribute("gameDifficulty", difficulty);
-            session.setAttribute("gameColor", color);
 
-            model.addAttribute("difficulty", difficulty);
-            model.addAttribute("color", color);
+        // Pass match data to the view
+        model.addAttribute("matchId", matchId);
+        model.addAttribute("difficulty", session.getAttribute("gameDifficulty"));
+        model.addAttribute("color", session.getAttribute("gameColor"));
 
-            RestTemplate restTemplate = new RestTemplate();
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            // create challenge
-            Bot bot = new Bot();
-            String algorithm = "";
-            if(difficulty.equals("easy")) {
-                algorithm = "random";
-            } else if(difficulty.equals("medium")) {
-                algorithm = "minimax";
-            }
-            String externalBotServiceUrl = botServiceUrl + "get-bot?algorithm=" + algorithm;
-            try {
-                ResponseEntity<Bot> responseEntity = restTemplate.exchange(
-                        externalBotServiceUrl,
-                        HttpMethod.GET,
-                        null,
-                        new ParameterizedTypeReference<Bot>() {}
-                );
-                bot = responseEntity.getBody();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            Challenge challenge = new Challenge();
-            challenge.setChallenger(loggedInMember);
-            challenge.setBot(bot);
-            challenge.setStatus("ACCEPTED");
-            challenge.setWithBot(1);
-
-            String externalMemberServiceUrl = memberServiceUrl + "create-challenge";
-            try {
-                HttpEntity<Challenge> httpEntityRequest = new HttpEntity<>(challenge, headers);
-                ResponseEntity<Challenge> responseEntity = restTemplate.exchange(
-                        externalMemberServiceUrl,
-                        HttpMethod.POST,
-                        httpEntityRequest,
-                        new ParameterizedTypeReference<Challenge>() {}
-                );
-                challenge = responseEntity.getBody();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            // create match
-            if(challenge != null) {
-                Match match = new Match();
-                match.setChallenge(challenge);
-                match.setIsWhiteRequester(1);
-                match.setWhiteToBlack(-1);
-
-                String externalMatchServiceUrl = matchServiceUrl + "create-match";
-                try {
-                    HttpEntity<Match> httpEntityRequest = new HttpEntity<>(match, headers);
-                    ResponseEntity<Match> responseEntity = restTemplate.exchange(
-                            externalMatchServiceUrl,
-                            HttpMethod.POST,
-                            httpEntityRequest,
-                            new ParameterizedTypeReference<Match>() {}
-                    );
-                    match = responseEntity.getBody();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
         return "play-with-bot";
     }
 
@@ -437,38 +474,6 @@ public class ClientController {
         }
     }
 
-    @PostMapping("/save-game-result")
-    @ResponseBody
-    public boolean saveGameResult(@RequestBody Result result) {
-        try {
-            Member loggedInMember = (Member) session.getAttribute("loggedInMember");
-            if (loggedInMember == null) {
-                return false;
-            }
-
-            Member memberA = new Member();
-            memberA.setId(loggedInMember.getId());
-            result.setMemberA(memberA);
-
-            RestTemplate restTemplate = new RestTemplate();
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            HttpEntity<Result> entity = new HttpEntity<>(result, headers);
-
-            ResponseEntity<Boolean> response = restTemplate.exchange(
-                    resultServiceUrl + "/save-result",
-                    HttpMethod.POST,
-                    entity,
-                    Boolean.class
-            );
-
-            return response.getBody();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
     @PostMapping("/save-match-result")
     @ResponseBody
     public boolean saveMatchResult(@RequestBody Match match) {
@@ -478,24 +483,42 @@ public class ClientController {
                 return false;
             }
 
-            Member memberA = new Member();
-            memberA.setId(loggedInMember.getId());
-            result.setMemberA(memberA);
+            // Kiểm tra match ID
+            if (match == null || match.getId() <= 0) {
+                System.err.println("Invalid match ID: " + match.getId());
+                return false;
+            }
+
+            // Không cần thiết lập thêm thông tin, chỉ cần ID và whiteToBlack
+            System.out.println("Saving match result: ID=" + match.getId() + ", whiteToBlack=" + match.getWhiteToBlack());
 
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            HttpEntity<Result> entity = new HttpEntity<>(result, headers);
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-            ResponseEntity<Boolean> response = restTemplate.exchange(
-                    resultServiceUrl + "/save-result",
-                    HttpMethod.POST,
-                    entity,
-                    Boolean.class
-            );
+            // Debug request trước khi gửi
+            String requestUrl = matchServiceUrl + "save-match-result";
+            System.out.println("Sending request to: " + requestUrl);
+            System.out.println("Request payload: " + match);
 
-            return response.getBody();
+            HttpEntity<Match> requestEntity = new HttpEntity<>(match, headers);
+
+            try {
+                ResponseEntity<Boolean> response = restTemplate.exchange(
+                        requestUrl,
+                        HttpMethod.POST,
+                        requestEntity,
+                        Boolean.class
+                );
+                System.out.println("Response received: " + response.getBody());
+                return response.getBody();
+            } catch (Exception e) {
+                System.err.println("Error in REST call: " + e.getClass().getName() + ": " + e.getMessage());
+                e.printStackTrace();
+                return false;
+            }
         } catch (Exception e) {
+            System.err.println("Error processing request: " + e.getMessage());
             e.printStackTrace();
             return false;
         }

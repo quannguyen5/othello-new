@@ -17,14 +17,16 @@ class Request {
     private int senderId;
     private int receiverId;
     private String type;
+    private String senderColor;
 
     public Request() {
     }
 
-    public Request(int senderId, int receiverId, String type) {
+    public Request(int senderId, int receiverId, String type, String senderColor) {
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.type = type;
+        this.senderColor = senderColor;
     }
 
     public int getSenderId() {
@@ -50,6 +52,14 @@ class Request {
     public void setType(String type) {
         this.type = type;
     }
+
+    public String getSenderColor() {
+        return senderColor;
+    }
+
+    public void setSenderColor(String senderColor) {
+        this.senderColor = senderColor;
+    }
 }
 
 @RestController
@@ -74,15 +84,26 @@ public class WebSocketHandler {
 
     @MessageMapping("/challenge")
     public void challenge(Request request) {
-        System.out.println(String.format("from %d to %d",
+        System.out.println(String.format("from %d to %d type %s color %S",
                 request.getSenderId(),
-                request.getReceiverId()));
+                request.getReceiverId(),
+                request.getType(),
+                request.getSenderColor())
+        );
 
         Challenge challenge = new Challenge();
         challenge.setChallenger(memberDAO.findById(request.getSenderId()));
         challenge.setChallenged(memberDAO.findById(request.getReceiverId()));
         challenge.setStatus("PENDING");
         challenge.setWithBot(0);
+
+        //hardcode
+        if(request.getSenderColor().equalsIgnoreCase("WHITE")) {
+            challenge.setIsWhiteRequester(1);
+        } else {
+            challenge.setIsWhiteRequester(0);
+        }
+
         Challenge isCreated = challengeDAO.createChallenge(challenge);
 
         messagingTemplate.convertAndSend(
@@ -90,17 +111,19 @@ public class WebSocketHandler {
                 new Request(
                         request.getSenderId(),
                         request.getReceiverId(),
-                        "CHALLENGE_REQUEST"
+                        "CHALLENGE_REQUEST",
+                        request.getSenderColor()
                 )
         );
     }
 
     @MessageMapping("/challenge-response")
     public void challengeResponse(Request request) {
-        System.out.println(String.format("%s response from %d to %d",
+        System.out.println(String.format("%s response from %d to %d color %s",
                 request.getType(),
                 request.getSenderId(),
-                request.getReceiverId()));
+                request.getReceiverId(),
+                request.getSenderColor()));
 
         if ("CHALLENGE_ACCEPTED".equals(request.getType())) {
             messagingTemplate.convertAndSend(
@@ -125,14 +148,14 @@ public class WebSocketHandler {
                     Request declineRequest = new Request(
                             request.getSenderId(),
                             otherChallenge.getChallenger().getId(),
-                            "CHALLENGE_DECLINED"
+                            "CHALLENGE_DECLINED",
+                            request.getSenderColor()
                     );
 
                     messagingTemplate.convertAndSend(
                             "/queue/private." + otherChallenge.getChallenger().getId(),
                             declineRequest
                     );
-
                 }
             }
         } else if ("CHALLENGE_DECLINED".equals(request.getType())) {

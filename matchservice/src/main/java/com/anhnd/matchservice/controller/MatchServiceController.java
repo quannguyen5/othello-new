@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.regex.MatchResult;
 
 @RestController
 @RequestMapping("/match-service/api/")
@@ -19,5 +20,10 @@ public class MatchServiceController {
     @PostMapping("create-match")
     public Match createMatch(@RequestBody() Match match) {
         return matchDAO.createMatch(match);
+    }
+
+    @PostMapping("save-match-result")
+    public boolean saveMatchResult(@RequestBody Match match) {
+        return matchDAO.saveMatchResult(match);
     }
 }

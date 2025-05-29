@@ -8,6 +8,7 @@ public class Challenge {
     private Member challenged;
     private Bot bot;
     private int withBot;
+    private int isWhiteRequester;
     private Date created_at;
     private Date expires_at;
     private String status;
@@ -77,5 +78,13 @@ public class Challenge {
 
     public void setWithBot(int withBot) {
         this.withBot = withBot;
+    }
+
+    public int getIsWhiteRequester() {
+        return isWhiteRequester;
+    }
+
+    public void setIsWhiteRequester(int isWhiteRequester) {
+        this.isWhiteRequester = isWhiteRequester;
     }
 }

@@ -143,6 +143,9 @@
         <button class="button" onclick="quitGame()">Quit</button>
     </div>
     <input type="hidden" id="loggedInMemberId" th:value="${session.loggedInMember != null ? session.loggedInMember.id : ''}" />
+    <input type="hidden" id="matchId" th:value="${matchId}" />
+    <input type="hidden" id="gameDifficulty" th:value="${difficulty}" />
+    <input type="hidden" id="gameColor" th:value="${color}" />
 </div>
 
 <script>
@@ -164,19 +167,28 @@
     let loggedInMemberId = null;
 
     function initGame() {
-        const params = new URLSearchParams(window.location.search);
-        const colorParam = params.get('color');
-        difficulty = params.get('difficulty') || 'easy';
+        // Get match ID from the URL
+        const pathSegments = window.location.pathname.split('/');
+        const matchId = pathSegments[pathSegments.length - 1];
 
-        if (colorParam === 'white') {
-            userColor = 2;
-            botColor = 1;
-        } else if (colorParam === 'black') {
-            userColor = 1;
-            botColor = 2;
-        } else if (colorParam === 'random') {
-            userColor = Math.random() < 0.5 ? 1 : 2;
-            botColor = userColor === 1 ? 2 : 1;
+        // Initialize game settings
+        const difficultyElement = document.getElementById('gameDifficulty');
+        const colorElement = document.getElementById('gameColor');
+
+        if (difficultyElement && colorElement) {
+            difficulty = difficultyElement.value || 'easy';
+            const colorParam = colorElement.value;
+
+            if (colorParam === 'white') {
+                userColor = 2;
+                botColor = 1;
+            } else if (colorParam === 'black') {
+                userColor = 1;
+                botColor = 2;
+            } else if (colorParam === 'random') {
+                userColor = Math.random() < 0.5 ? 1 : 2;
+                botColor = userColor === 1 ? 2 : 1;
+            }
         }
 
         document.getElementById('your-color').textContent = 'You(' + (userColor === 1 ? 'Black' : 'White') + ')';
@@ -223,6 +235,27 @@
     }
 
     function updateBoard() {
+        let emptyCount = 0;
+        let lastEmptyCell = null;
+
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === 0) {
+                    emptyCount++;
+                    lastEmptyCell = [i, j];
+                }
+            }
+        }
+
+        if (emptyCount === 1) {
+            console.log("Only one empty cell left!");
+            if (isValidMove(board, lastEmptyCell[0], lastEmptyCell[1], currentPlayer)) {
+                makeMove(lastEmptyCell[0], lastEmptyCell[1], currentPlayer);
+                endGame();
+                return;
+            }
+        }
+
         const cells = document.getElementsByClassName('cell');
         for (let i = 0; i < cells.length; i++) {
             const cell = cells[i];
@@ -346,6 +379,8 @@
             makeMove(row, col, userColor);
             updateBoard();
 
+            if (checkGameEnd()) return;
+
             switchPlayer();
 
             if (currentPlayer === botColor) {
@@ -353,9 +388,16 @@
             }
         }
     }
-
     async function makeBotMove() {
         try {
+            // Kiểm tra xem bot có nước đi hợp lệ không
+            const validMoves = getValidMoves(board, botColor);
+            if (validMoves.length === 0) {
+                console.log("Bot has no valid moves. Switching player or ending game.");
+                switchPlayer();
+                return;
+            }
+
             const response = await fetch('/make-move-api', {
                 method: 'POST',
                 headers: {
@@ -374,14 +416,80 @@
             if (move && move.length === 2) {
                 makeMove(move[0], move[1], botColor);
                 updateBoard();
+
+                // Kiểm tra lại nếu bàn cờ đã đầy sau nước đi của bot
+                let boardFull = true;
+                for (let i = 0; i < 8; i++) {
+                    for (let j = 0; j < 8; j++) {
+                        if (board[i][j] === 0) {
+                            boardFull = false;
+                            break;
+                        }
+                    }
+                    if (!boardFull) break;
+                }
+
+                if (boardFull) {
+                    endGame();
+                    return;
+                }
+
                 switchPlayer();
+            } else {
+                console.error("Invalid move returned from bot");
+                // Nếu bot không có nước đi hợp lệ, kết thúc game
+                endGame();
             }
         } catch (error) {
             console.error('Error getting bot move:', error);
+            checkGameEnd();
         }
+    }
+    function checkGameEnd() {
+        // Kiểm tra bàn cờ đã đầy chưa
+        let boardFull = true;
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === 0) {
+                    boardFull = false;
+                    break;
+                }
+            }
+            if (!boardFull) break;
+        }
+
+        // Kiểm tra cả hai bên còn nước đi không
+        const userValidMoves = getValidMoves(board, userColor);
+        const botValidMoves = getValidMoves(board, botColor);
+
+        // Kết thúc game nếu bàn cờ đầy hoặc cả hai bên không còn nước đi
+        if (boardFull || (userValidMoves.length === 0 && botValidMoves.length === 0)) {
+            endGame();
+            return true;
+        }
+
+        return false;
     }
 
     function switchPlayer() {
+        // Kiểm tra nếu bàn cờ đã đầy
+        let boardFull = true;
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                if (board[i][j] === 0) {
+                    boardFull = false;
+                    break;
+                }
+            }
+            if (!boardFull) break;
+        }
+
+        if (boardFull) {
+            endGame(); // Kết thúc game nếu bàn cờ đã đầy
+            return;
+        }
+
+        // Logic chuyển người chơi hiện tại
         const validMoves = getValidMoves(board, currentPlayer === 1 ? 2 : 1);
         if (validMoves.length > 0) {
             currentPlayer = currentPlayer === 1 ? 2 : 1;
@@ -395,7 +503,6 @@
 
         updateBoard();
     }
-
     function updateScores() {
         let yourScore = 0;
         let botScore = 0;
@@ -447,38 +554,36 @@
     }
     async function saveGameResult(isUserWin) {
         try {
-            const userId = document.getElementById('loggedInMemberId').value;
-            if (!userId) {
-                console.error("No logged in user found!");
+            const matchId = document.getElementById('matchId').value;
+            if (!matchId) {
+                console.error("No match ID found!");
                 return;
             }
 
-            const botId = getBotIdFromDifficulty(difficulty);
-
-            console.log("User ID:", userId);
-            console.log("Bot ID:", botId);
-            console.log("User Win:", isUserWin);
-
-            let res = 0;
-            if(isUserWin) res = 1;
-
-            const memberA = {
-                id: parseInt(userId)
-            }
-            const bot = {
-                id: botId
+            // Chuyển đổi kết quả sang white_to_black
+            let whiteToBlack = -1; // Giá trị mặc định/đang chơi
+            if (isUserWin) {
+                // Nếu người dùng là white và thắng HOẶC người dùng là black và thua
+                whiteToBlack = (userColor === 2) ? 1 : 0;
+            } else {
+                // Nếu người dùng là white và thua HOẶC người dùng là black và thắng
+                whiteToBlack = (userColor === 2) ? 0 : 1;
             }
 
-            const response = await fetch('/save-game-result', {
+            // Tạo đối tượng Match đúng cấu trúc
+            const match = {
+                id: parseInt(matchId),
+                whiteToBlack: whiteToBlack
+            };
+
+            console.log("Saving match result:", match);
+
+            const response = await fetch('/save-match-result', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    memberA: memberA,
-                    bot: bot,
-                    resAToBot: res
-                })
+                body: JSON.stringify(match)
             });
 
             const result = await response.json();
@@ -487,7 +592,6 @@
             console.error('Error saving game result:', error);
         }
     }
-
     function getBotIdFromDifficulty(difficulty) {
         switch(difficulty) {
             case 'easy':
