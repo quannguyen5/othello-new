@@ -8,6 +8,7 @@ public class Challenge {
     private Member challenged;
     private Bot bot;
     private int withBot;
+    private int isWhiteRequester;
     private Date created_at;
     private Date expires_at;
     private String status;
@@ -39,22 +40,6 @@ public class Challenge {
         this.challenged = challenged;
     }
 
-    public Bot getBot() {
-        return bot;
-    }
-
-    public void setBot(Bot bot) {
-        this.bot = bot;
-    }
-
-    public int getWithBot() {
-        return withBot;
-    }
-
-    public void setWithBot(int withBot) {
-        this.withBot = withBot;
-    }
-
     public Date getCreated_at() {
         return created_at;
     }
@@ -77,5 +62,29 @@ public class Challenge {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Bot getBot() {
+        return bot;
+    }
+
+    public void setBot(Bot bot) {
+        this.bot = bot;
+    }
+
+    public int getWithBot() {
+        return withBot;
+    }
+
+    public void setWithBot(int withBot) {
+        this.withBot = withBot;
+    }
+
+    public int getIsWhiteRequester() {
+        return isWhiteRequester;
+    }
+
+    public void setIsWhiteRequester(int isWhiteRequester) {
+        this.isWhiteRequester = isWhiteRequester;
     }
 }

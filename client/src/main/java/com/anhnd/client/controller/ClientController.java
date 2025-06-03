@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 
@@ -194,16 +196,51 @@ public class ClientController {
             );
             Member selectedMember = memberResponse.getBody();
 
-            String listResultUrl = resultServiceUrl + "get-list-result?memberId=" + memberId;
-            ResponseEntity<List<Result>> resultResponse = restTemplate.exchange(
-                    listResultUrl,
+            // Lấy danh sách challenge của member
+            String challengesUrl = memberServiceUrl + "get-challenges-by-member?memberId=" + memberId;
+            ResponseEntity<List<Challenge>> challengesResponse = restTemplate.exchange(
+                    challengesUrl,
                     HttpMethod.GET,
                     null,
-                    new ParameterizedTypeReference<List<Result>>() {}
+                    new ParameterizedTypeReference<List<Challenge>>() {}
             );
-            List<Result> results = resultResponse.getBody();
+            List<Challenge> challenges = challengesResponse.getBody();
 
-            int totalMatches = results.size();
+            // Lấy ID của tất cả các challenge
+            List<Integer> challengeIds = new ArrayList<>();
+            if (challenges != null) {
+                for (Challenge challenge : challenges) {
+                    challengeIds.add(challenge.getId());
+                }
+            }
+
+            // Lấy tất cả các match liên quan
+            List<Match> matches = new ArrayList<>();
+            if (!challengeIds.isEmpty()) {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<List<Integer>> requestEntity = new HttpEntity<>(challengeIds, headers);
+
+                String matchesUrl = matchServiceUrl + "get-matches-by-challenge-ids";
+                ResponseEntity<List<Match>> matchesResponse = restTemplate.exchange(
+                        matchesUrl,
+                        HttpMethod.POST,
+                        requestEntity,
+                        new ParameterizedTypeReference<List<Match>>() {}
+                );
+                matches = matchesResponse.getBody();
+            }
+
+            // Kết hợp dữ liệu challenge và match
+            Map<Integer, Match> matchMap = new HashMap<>();
+            if (matches != null) {
+                for (Match match : matches) {
+                    matchMap.put(match.getChallenge().getId(), match);
+                }
+            }
+
+            // Thống kê dữ liệu
+            int totalMatches = 0;
             int wins = 0;
             int draws = 0;
             int losses = 0;
@@ -212,46 +249,50 @@ public class ClientController {
             int vsCurrentUserDraws = 0;
             int vsCurrentUserLosses = 0;
 
-            for (Result result : results) {
-                if (result.getMemberA().getId() == memberId) {
-                    if (result.getMemberB().getId() > 0) {
-                        if (result.getMemberB().getId() == loggedInMember.getId()) {
-                            if (result.getResAtoB() == 1) {
+            if (challenges != null) {
+                for (Challenge challenge : challenges) {
+                    // Chỉ xử lý các challenge đã có kết quả match
+                    if (matchMap.containsKey(challenge.getId())) {
+                        Match match = matchMap.get(challenge.getId());
+                        // Chỉ tính những trận đã hoàn thành
+                        if (match.getWhiteToBlack() != -1) {
+                            totalMatches++;
+
+                            // Xác định member đang xem là white hay black
+                            boolean isMemberWhite = false;
+                            boolean isVsCurrentUser = false;
+
+                            if (challenge.getWithBot() == 1) {
+                                // Trận đấu với bot
+                                if (challenge.getChallenger().getId() == memberId) {
+                                    isMemberWhite = (challenge.getIsWhiteRequester() == 1);
+                                }
+                            } else {
+                                // Trận đấu với người chơi khác
+                                if (challenge.getChallenger().getId() == memberId) {
+                                    isMemberWhite = (challenge.getIsWhiteRequester() == 1);
+                                    if (challenge.getChallenged().getId() == loggedInMember.getId()) {
+                                        isVsCurrentUser = true;
+                                    }
+                                } else if (challenge.getChallenged().getId() == memberId) {
+                                    isMemberWhite = (challenge.getIsWhiteRequester() == 0);
+                                    if (challenge.getChallenger().getId() == loggedInMember.getId()) {
+                                        isVsCurrentUser = true;
+                                    }
+                                }
+                            }
+
+                            // Phân tích kết quả
+                            boolean isWin = (isMemberWhite && match.getWhiteToBlack() == 1) ||
+                                    (!isMemberWhite && match.getWhiteToBlack() == 0);
+
+                            if (isWin) {
                                 wins++;
-                                vsCurrentUserWins++;
+                                if (isVsCurrentUser) vsCurrentUserWins++;
                             } else {
                                 losses++;
-                                vsCurrentUserLosses++;
+                                if (isVsCurrentUser) vsCurrentUserLosses++;
                             }
-                        } else {
-                            if (result.getResAtoB() == 1) {
-                                wins++;
-                            } else {
-                                losses++;
-                            }
-                        }
-                    } else if(result.getBot().getId() > 0) {
-                        if(result.getResAToBot() == 1) {
-                            wins++;
-                        } else {
-                            losses++;
-                        }
-                    }
-                }
-                else if (result.getMemberB().getId() == memberId) {
-                    if (result.getMemberA().getId() == loggedInMember.getId()) {
-                        if (result.getResAtoB() == 0) {
-                            wins++;
-                            vsCurrentUserWins++;
-                        } else {
-                            losses++;
-                            vsCurrentUserLosses++;
-                        }
-                    } else {
-                        if (result.getResAtoB() == 0) {
-                            wins++;
-                        } else {
-                            losses++;
                         }
                     }
                 }
@@ -288,19 +329,92 @@ public class ClientController {
         if (loggedInMember == null) {
             return "redirect:/login";
         }
-        String externalServiceUrl = resultServiceUrl + "get-list-result-to-opponent?" +
-                "memberId=" + memberId + "&opponentId=" + currentUserId + "&type=" + type;
+
         RestTemplate restTemplate = new RestTemplate();
+
         try {
-            ResponseEntity<List<Result>> listResultResponse = restTemplate.exchange(
-                    externalServiceUrl,
+            // Lấy danh sách challenge giữa hai người chơi
+            String challengesUrl = memberServiceUrl + "get-challenges-between-members" +
+                    "?memberId=" + memberId + "&opponentId=" + currentUserId;
+            ResponseEntity<List<Challenge>> challengesResponse = restTemplate.exchange(
+                    challengesUrl,
                     HttpMethod.GET,
                     null,
-                    new ParameterizedTypeReference<List<Result>>(){}
+                    new ParameterizedTypeReference<List<Challenge>>() {}
             );
-            List<Result> listResults = listResultResponse.getBody();
+            List<Challenge> challenges = challengesResponse.getBody();
+
+            // Lấy ID của tất cả các challenge
+            List<Integer> challengeIds = new ArrayList<>();
+            if (challenges != null) {
+                for (Challenge challenge : challenges) {
+                    challengeIds.add(challenge.getId());
+                }
+            }
+
+            // Lấy tất cả các match liên quan
+            List<Match> matches = new ArrayList<>();
+            if (!challengeIds.isEmpty()) {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpEntity<List<Integer>> requestEntity = new HttpEntity<>(challengeIds, headers);
+
+                String matchesUrl = matchServiceUrl + "get-matches-by-challenge-ids";
+                ResponseEntity<List<Match>> matchesResponse = restTemplate.exchange(
+                        matchesUrl,
+                        HttpMethod.POST,
+                        requestEntity,
+                        new ParameterizedTypeReference<List<Match>>() {}
+                );
+                matches = matchesResponse.getBody();
+            }
+
+            // Kết hợp dữ liệu challenge và match
+            Map<Integer, Match> matchMap = new HashMap<>();
+            if (matches != null) {
+                for (Match match : matches) {
+                    matchMap.put(match.getChallenge().getId(), match);
+                }
+            }
+
+            // Lọc các trận đấu theo kết quả mong muốn
+            List<LocalDateTime> filteredResults = new ArrayList<>();
+
+            if (challenges != null) {
+                for (Challenge challenge : challenges) {
+                    // Chỉ xử lý các challenge đã có kết quả match
+                    if (matchMap.containsKey(challenge.getId())) {
+                        Match match = matchMap.get(challenge.getId());
+                        // Chỉ tính những trận đã hoàn thành
+                        if (match.getWhiteToBlack() != -1) {
+                            // Xác định member đang xem là white hay black
+                            boolean isMemberWhite = false;
+
+                            if (challenge.getChallenger().getId() == memberId) {
+                                isMemberWhite = (challenge.getIsWhiteRequester() == 1);
+                            } else if (challenge.getChallenged().getId() == memberId) {
+                                isMemberWhite = (challenge.getIsWhiteRequester() == 0);
+                            }
+
+                            // Phân tích kết quả
+                            boolean isWin = (isMemberWhite && match.getWhiteToBlack() == 1) ||
+                                    (!isMemberWhite && match.getWhiteToBlack() == 0);
+
+                            // Nếu kết quả phù hợp với yêu cầu, thêm vào danh sách
+                            if ((type == 1 && isWin) || (type == 0 && !isWin)) {
+                                LocalDateTime result = null;
+                                result = (challenge.getCreated_at() != null ?
+                                        challenge.getCreated_at().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() :
+                                        LocalDateTime.now());
+                                filteredResults.add(result);
+                            }
+                        }
+                    }
+                }
+            }
+
             model.addAttribute("resultType", type);
-            model.addAttribute("listResults", listResults);
+            model.addAttribute("listResults", filteredResults);
 
             return "type-result-detail";
         } catch (Exception e) {
@@ -483,20 +597,17 @@ public class ClientController {
                 return false;
             }
 
-            // Kiểm tra match ID
             if (match == null || match.getId() <= 0) {
                 System.err.println("Invalid match ID: " + match.getId());
                 return false;
             }
 
-            // Không cần thiết lập thêm thông tin, chỉ cần ID và whiteToBlack
             System.out.println("Saving match result: ID=" + match.getId() + ", whiteToBlack=" + match.getWhiteToBlack());
 
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // Debug request trước khi gửi
             String requestUrl = matchServiceUrl + "save-match-result";
             System.out.println("Sending request to: " + requestUrl);
             System.out.println("Request payload: " + match);

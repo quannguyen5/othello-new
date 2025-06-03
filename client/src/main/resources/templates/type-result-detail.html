@@ -124,7 +124,7 @@
     </thead>
     <tbody>
     <tr th:each="result : ${listResults}">
-      <td class="date-cell" th:text="${result.createdAt != null ? #temporals.format(result.createdAt, 'yyyy-MM-dd') : 'N/A'}">2024-04-10</td>
+      <td class="date-cell" th:text="${result != null ? #temporals.format(result, 'yyyy-MM-dd') : 'N/A'}">2024-04-10</td>
       <td>
         <span class="result-badge win" th:if="${resultType == 1}">Win</span>
         <span class="result-badge draw" th:if="${resultType == 2}">Draw</span>

@@ -1,6 +1,8 @@
 package com.anhnd.memberservice.controller;
 
+import com.anhnd.memberservice.dao.ChallengeDAO;
 import com.anhnd.memberservice.dao.MemberDAO;
+import com.anhnd.memberservice.model.Challenge;
 import com.anhnd.memberservice.model.Member;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +17,9 @@ public class MemberServiceController {
 
     @Autowired
     private MemberDAO memberDAO;
+
+    @Autowired
+    private ChallengeDAO challengeDAO;
 
     @PostMapping("/login")
     public Member processLogin(@RequestBody Member member) {
@@ -40,4 +45,16 @@ public class MemberServiceController {
         friends.sort(Comparator.comparing(Member::getElo).reversed());
         return friends;
     }
+    @GetMapping("/get-challenges-by-member")
+    public List<Challenge> getChallengesByMember(@RequestParam("memberId") int memberId) {
+        return challengeDAO.getChallengesByMember(memberId);
+    }
+
+    @GetMapping("/get-challenges-between-members")
+    public List<Challenge> getChallengesBetweenMembers(
+            @RequestParam("memberId") int memberId,
+            @RequestParam("opponentId") int opponentId) {
+        return challengeDAO.getChallengesBetweenMembers(memberId, opponentId);
+    }
+
 }

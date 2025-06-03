@@ -2,11 +2,9 @@ package com.anhnd.matchservice.controller;
 
 import com.anhnd.matchservice.dao.MatchDAO;
 import com.anhnd.matchservice.model.Match;
+import com.anhnd.matchservice.model.Member;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.regex.MatchResult;
@@ -26,4 +24,21 @@ public class MatchServiceController {
     public boolean saveMatchResult(@RequestBody Match match) {
         return matchDAO.saveMatchResult(match);
     }
+
+    @GetMapping("get-all-matches")
+    public List<Match> getAllMatches() {
+        return matchDAO.getAllMatches();
+    }
+
+    @GetMapping("get-match-by-id")
+    public Match getMatchById(@RequestParam("matchId") int matchId) {
+        return matchDAO.getMatchById(matchId);
+    }
+
+    @PostMapping("get-matches-by-challenge-ids")
+    public List<Match> getMatchesByChallengeIds(@RequestBody List<Integer> challengeIds) {
+        return matchDAO.getMatchesByChallengeIds(challengeIds);
+    }
+
+
 }

@@ -1,5 +1,6 @@
 package com.anhnd.memberservice.dao;
 
+import com.anhnd.memberservice.model.Bot;
 import com.anhnd.memberservice.model.Challenge;
 import com.anhnd.memberservice.model.Member;
 import org.springframework.stereotype.Service;
@@ -137,4 +138,95 @@ public class ChallengeDAO extends MemberServiceDAO{
         }
         return challenges;
     }
+
+    public List<Challenge> getChallengesByMember(int memberId) {
+        String sql = """
+        SELECT * FROM challenges 
+        WHERE (challenger_id = ? OR challenged_id = ?)
+        AND status = 'ACCEPTED'
+    """;
+
+        List<Challenge> challenges = new ArrayList<>();
+
+        try (Connection conn = this.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, memberId);
+            ps.setInt(2, memberId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Challenge challenge = mapResultSetToChallenge(rs);
+                    challenges.add(challenge);
+                }
+            }
+
+            return challenges;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return challenges;
+        }
+    }
+
+    public List<Challenge> getChallengesBetweenMembers(int memberId, int opponentId) {
+        String sql = """
+        SELECT * FROM challenges
+        WHERE ((challenger_id = ? AND challenged_id = ?) 
+               OR (challenger_id = ? AND challenged_id = ?))
+        AND status = 'ACCEPTED'
+    """;
+
+        List<Challenge> challenges = new ArrayList<>();
+
+        try (Connection conn = this.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, memberId);
+            ps.setInt(2, opponentId);
+            ps.setInt(3, opponentId);
+            ps.setInt(4, memberId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Challenge challenge = mapResultSetToChallenge(rs);
+                    challenges.add(challenge);
+                }
+            }
+
+            return challenges;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return challenges;
+        }
+    }
+
+    private Challenge mapResultSetToChallenge(ResultSet rs) throws SQLException {
+        Challenge challenge = new Challenge();
+        challenge.setId(rs.getInt("id"));
+
+        Member challenger = new Member();
+        challenger.setId(rs.getInt("challenger_id"));
+        challenge.setChallenger(challenger);
+
+        int withBot = rs.getInt("with_bot");
+        challenge.setWithBot(withBot);
+
+        if (withBot == 1) {
+            Bot bot = new Bot();
+            bot.setId(rs.getInt("bot_id"));
+            challenge.setBot(bot);
+        } else {
+            Member challenged = new Member();
+            challenged.setId(rs.getInt("challenged_id"));
+            challenge.setChallenged(challenged);
+        }
+
+        challenge.setIsWhiteRequester(rs.getInt("is_white_requester"));
+        challenge.setCreated_at(rs.getTimestamp("created_at"));
+        challenge.setExpires_at(rs.getTimestamp("expires_at"));
+        challenge.setStatus(rs.getString("status"));
+
+        return challenge;
+    }
+
 }

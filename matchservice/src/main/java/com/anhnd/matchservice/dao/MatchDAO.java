@@ -1,9 +1,14 @@
 package com.anhnd.matchservice.dao;
 
+import com.anhnd.matchservice.model.Bot;
+import com.anhnd.matchservice.model.Challenge;
 import com.anhnd.matchservice.model.Match;
+import com.anhnd.matchservice.model.Member;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class MatchDAO extends MatchServiceDAO {
@@ -65,4 +70,118 @@ public class MatchDAO extends MatchServiceDAO {
             return false;
         }
     }
+
+    /**
+     * getMatchesByMember
+     */
+    public List<Match> getMatchesByChallengeIds(List<Integer> challengeIds) {
+        if (challengeIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        StringBuilder sqlBuilder = new StringBuilder(
+                "SELECT * FROM `match` WHERE challenge_id IN ("
+        );
+
+        for (int i = 0; i < challengeIds.size(); i++) {
+            sqlBuilder.append("?");
+            if (i < challengeIds.size() - 1) {
+                sqlBuilder.append(",");
+            }
+        }
+        sqlBuilder.append(")");
+
+        List<Match> matches = new ArrayList<>();
+
+        try (Connection conn = this.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sqlBuilder.toString())) {
+
+            for (int i = 0; i < challengeIds.size(); i++) {
+                ps.setInt(i + 1, challengeIds.get(i));
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Match match = new Match();
+                    match.setId(rs.getInt("id"));
+                    match.setWhiteToBlack(rs.getInt("white_to_black"));
+
+                    // Chỉ thiết lập ID của challenge, không load đầy đủ challenge
+                    Challenge challenge = new Challenge();
+                    challenge.setId(rs.getInt("challenge_id"));
+                    match.setChallenge(challenge);
+
+                    matches.add(match);
+                }
+            }
+
+            return matches;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return matches;
+        }
+    }
+
+    /**
+     * Lấy tất cả trận đấu
+     */
+    public List<Match> getAllMatches() {
+        String sql = "SELECT * FROM `match`";
+        List<Match> matches = new ArrayList<>();
+
+        try (Connection conn = this.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Match match = new Match();
+                match.setId(rs.getInt("id"));
+                match.setWhiteToBlack(rs.getInt("white_to_black"));
+
+                Challenge challenge = new Challenge();
+                challenge.setId(rs.getInt("challenge_id"));
+                match.setChallenge(challenge);
+
+                matches.add(match);
+            }
+
+            return matches;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return matches;
+        }
+    }
+
+    /**
+     * Lấy thông tin match theo ID
+     */
+    public Match getMatchById(int matchId) {
+        String sql = "SELECT * FROM `match` WHERE id = ?";
+
+        try (Connection conn = this.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, matchId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Match match = new Match();
+                    match.setId(rs.getInt("id"));
+                    match.setWhiteToBlack(rs.getInt("white_to_black"));
+
+                    Challenge challenge = new Challenge();
+                    challenge.setId(rs.getInt("challenge_id"));
+                    match.setChallenge(challenge);
+
+                    return match;
+                }
+            }
+
+            return null;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 }
