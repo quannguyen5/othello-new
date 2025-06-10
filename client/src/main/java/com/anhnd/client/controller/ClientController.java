@@ -29,9 +29,6 @@ public class ClientController {
     @Value("${bot.service.url}")
     private String botServiceUrl;
 
-    @Value("${result.service.url}")
-    private String resultServiceUrl;
-
     @Value("${match.service.url}")
     private String matchServiceUrl;
 

@@ -1,14 +1,21 @@
 package com.anhnd.memberservice.dao;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
 public class MemberServiceDAO {
-    private static final String JDBC_URL = "jdbc:mysql://localhost:3306/othellomember";
-    private static final String JDBC_USERNAME = "root";
-    private static final String JDBC_PASSWORD = "1234";
+    @Value("${spring.datasource.url}")
+    private String JDBC_URL;
+
+    @Value("${spring.datasource.username}")
+    private String JDBC_USERNAME;
+
+    @Value("${spring.datasource.password}")
+    private String JDBC_PASSWORD;
 
     protected Connection getConnection() throws SQLException {
         try {
