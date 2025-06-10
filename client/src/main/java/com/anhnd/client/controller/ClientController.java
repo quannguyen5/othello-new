@@ -1,6 +1,7 @@
 package com.anhnd.client.controller;
 
 import com.anhnd.client.model.*;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,15 +42,22 @@ public class ClientController {
     }
 
     @GetMapping("/home")
-    public String home(Model model) {
+    public String home(Model model, HttpServletRequest request) {
+        System.out.println("=== HOME ACCESS ===");
+        System.out.println("Session ID: " + request.getSession().getId());
+
         Member loggedInMember = (Member) session.getAttribute("loggedInMember");
+        System.out.println("Logged in member: " + (loggedInMember != null ? loggedInMember.getUsername() : "null"));
+
         if (loggedInMember == null) {
+            System.out.println("No logged in member found, redirecting to login");
             return "redirect:/login";
         }
 
         model.addAttribute("currentUserId", loggedInMember.getId());
         return "home";
     }
+
 
     @GetMapping("/play")
     public String play() {
@@ -78,10 +86,45 @@ public class ClientController {
         return "select-bot-info";
     }
 
+//    @PostMapping("/login")
+//    public String processLogin(@RequestParam("username") String username,
+//                               @RequestParam("password") String password,
+//                               RedirectAttributes redirectAttributes) {
+//        Member loginMember = new Member();
+//        loginMember.setUsername(username);
+//        loginMember.setPassword(password);
+//
+//        HttpHeaders headers = new HttpHeaders();
+//        HttpEntity<Member> httpEntityRequest = new HttpEntity<>(loginMember, headers);
+//        RestTemplate restTemplate = new RestTemplate();
+//        String externalServiceUrl = memberServiceUrl + "/login";
+//        ResponseEntity<Member> responseEntity = restTemplate.exchange(
+//                externalServiceUrl,
+//                HttpMethod.POST,
+//                httpEntityRequest,
+//                new ParameterizedTypeReference<Member>() {}
+//        );
+//        loginMember = responseEntity.getBody();
+//
+//        if (loginMember != null) {
+//            session.setAttribute("loggedInMember", loginMember);
+//            redirectAttributes.addFlashAttribute("currentUserId", loginMember.getId());
+//            return "redirect:/home";
+//        } else {
+//            redirectAttributes.addFlashAttribute("loginMessage", "Tên đăng nhập hoặc mật khẩu không đúng");
+//            return "redirect:/login";
+//        }
+//    }
     @PostMapping("/login")
     public String processLogin(@RequestParam("username") String username,
                                @RequestParam("password") String password,
-                               RedirectAttributes redirectAttributes) {
+                               RedirectAttributes redirectAttributes,
+                               HttpServletRequest request) {
+
+        System.out.println("=== LOGIN ATTEMPT ===");
+        System.out.println("Username: " + username);
+        System.out.println("Session ID before login: " + request.getSession().getId());
+
         Member loginMember = new Member();
         loginMember.setUsername(username);
         loginMember.setPassword(password);
@@ -90,23 +133,36 @@ public class ClientController {
         HttpEntity<Member> httpEntityRequest = new HttpEntity<>(loginMember, headers);
         RestTemplate restTemplate = new RestTemplate();
         String externalServiceUrl = memberServiceUrl + "/login";
-        ResponseEntity<Member> responseEntity = restTemplate.exchange(
-                externalServiceUrl,
-                HttpMethod.POST,
-                httpEntityRequest,
-                new ParameterizedTypeReference<Member>() {}
-        );
-        loginMember = responseEntity.getBody();
 
-        if (loginMember != null) {
-            session.setAttribute("loggedInMember", loginMember);
-            redirectAttributes.addFlashAttribute("currentUserId", loginMember.getId());
-            return "redirect:/home";
-        } else {
-            redirectAttributes.addFlashAttribute("loginMessage", "Tên đăng nhập hoặc mật khẩu không đúng");
+        try {
+            ResponseEntity<Member> responseEntity = restTemplate.exchange(
+                    externalServiceUrl,
+                    HttpMethod.POST,
+                    httpEntityRequest,
+                    new ParameterizedTypeReference<Member>() {}
+            );
+            loginMember = responseEntity.getBody();
+
+            if (loginMember != null) {
+                session.setAttribute("loggedInMember", loginMember);
+                System.out.println("Login successful for user: " + loginMember.getUsername());
+                System.out.println("Session ID after login: " + request.getSession().getId());
+                System.out.println("Session attribute set: " + session.getAttribute("loggedInMember"));
+
+                redirectAttributes.addFlashAttribute("currentUserId", loginMember.getId());
+                return "redirect:/home";
+            } else {
+                System.out.println("Login failed - null member returned");
+                redirectAttributes.addFlashAttribute("loginMessage", "Tên đăng nhập hoặc mật khẩu không đúng");
+                return "redirect:/login";
+            }
+        } catch (Exception e) {
+            System.out.println("Login error: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("loginMessage", "Lỗi kết nối đến server");
             return "redirect:/login";
         }
     }
+
 
     @GetMapping("/logout")
     public String logout() {

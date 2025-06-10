@@ -6,7 +6,7 @@ if (!userId || userId.length === 0) {
 }
 
 const stompClient = new StompJs.Client({
-    brokerURL: 'ws://localhost:8081/member-service-websocket',
+    brokerURL: 'ws://memberservice-service:8081/member-service-websocket',
     connectHeaders: {
         userId: userId
     },
