@@ -6,13 +6,17 @@ if (!userId || userId.length === 0) {
 }
 
 const stompClient = new StompJs.Client({
-    brokerURL: 'ws://memberservice-service:8081/member-service-websocket',
+    brokerURL: 'ws://memberservice.anhnd.vn/member-service-websocket',
     connectHeaders: {
         userId: userId
     },
     debug: function(str) {
         console.log("STOMP Debug: " + str);
-    }
+    },
+    // Thêm cấu hình retry
+    reconnectDelay: 5000,
+    heartbeatIncoming: 4000,
+    heartbeatOutgoing: 4000
 });
 
 let isRedirecting = false;
