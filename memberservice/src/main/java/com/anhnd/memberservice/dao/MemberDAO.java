@@ -122,8 +122,8 @@ public class MemberDAO extends MemberServiceDAO {
         String sql = """
             SELECT m2.*
             FROM friendinvitation f
-            JOIN member m1 ON (f.requestId = m1.id OR f.receiveId = m1.id)
-            JOIN member m2 ON (
+            JOIN Member m1 ON (f.requestId = m1.id OR f.receiveId = m1.id)
+            JOIN Member m2 ON (
                 (m2.id = f.requestId OR m2.id = f.receiveId)
                 AND m2.id != m1.id
             )
